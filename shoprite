@@ -1,0 +1,119 @@
+// ==UserScript==
+// @name         Shoprite Price and Weight Conversion
+// @namespace    http://tampermonkey.net/
+// @version      1.6
+// @description  Convert weights from ounces to pounds and replace prices per ounce with prices per pound on Shoprite pages
+// @author       Your Name
+// @match        *://*.shoprite.com/*
+// @grant        none
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // Set to track processed elements
+    let processedElements = new Set();
+
+    // Helper function to convert ounces to pounds
+    function convertOuncesToPounds(ounces) {
+        return (ounces / 16).toFixed(2);
+    }
+
+    // Helper function to convert price per ounce to price per pound in dollars
+    function convertPricePerOunceToPricePerPound(pricePerOunce) {
+        return (pricePerOunce * 16).toFixed(2);
+    }
+
+    // Function to update the prices and weights on the page
+    function updatePage() {
+        // Select elements that contain the price information
+        let priceElements = document.querySelectorAll('[class*="ProductUnitPrice--"]');
+        console.log('Found price elements:', priceElements);
+
+        priceElements.forEach(priceElement => {
+            if (processedElements.has(priceElement)) {
+                return; // Skip already processed elements
+            }
+
+            let priceText = priceElement.innerHTML;
+            console.log('Price text:', priceText);
+
+            // Extract the price per ounce
+            let pricePerOunceMatch = priceText.match(/\$([\d\.]+)\/oz/);
+            if (pricePerOunceMatch) {
+                let pricePerOunce = parseFloat(pricePerOunceMatch[1]);
+                let pricePerPound = convertPricePerOunceToPricePerPound(pricePerOunce);
+                console.log('Price per pound:', pricePerPound);
+
+                // Construct the new HTML string to replace price per ounce text
+                let newHTML = priceText.replace(pricePerOunceMatch[0], `($${pricePerPound}/lb)`);
+
+                // Update the price element with the new HTML
+                priceElement.innerHTML = newHTML;
+
+                // Apply important CSS
+                priceElement.style.setProperty('color', 'red', 'important');
+
+                // Mark as processed
+                processedElements.add(priceElement);
+            } else {
+                console.log('No price per ounce found, skipping element');
+            }
+        });
+
+        // Select elements that contain the product information
+        let productElements = document.querySelectorAll('[data-testid*="ProductNameTestId"]');
+        console.log('Found product elements:', productElements);
+
+        productElements.forEach(productElement => {
+            if (processedElements.has(productElement)) {
+                return; // Skip already processed elements
+            }
+
+            let productText = productElement.innerText;
+            console.log('Product text:', productText);
+
+            // Extract the weight in ounces
+            let ouncesMatch = productText.match(/(\d+\.?\d*)\s?oz/);
+            let weightInPounds;
+
+            if (ouncesMatch) {
+                let ounces = parseFloat(ouncesMatch[1]);
+                weightInPounds = convertOuncesToPounds(ounces);
+                console.log('Weight in pounds:', weightInPounds);
+
+                // Construct the new HTML string to prepend weight in pounds
+                let newHTML = `${weightInPounds}lb ${productText.replace(ouncesMatch[0], '')}`;
+
+                // Update the product element with the new HTML
+                productElement.innerHTML = newHTML;
+
+                // Mark as processed
+                processedElements.add(productElement);
+            } else {
+                console.log('No weight in ounces found, skipping element');
+            }
+        });
+    }
+
+    // Function to debounce the updatePage function
+    function debounce(func, timeout) {
+        let timer;
+        return function() {
+            clearTimeout(timer);
+            timer = setTimeout(func, timeout);
+        };
+    }
+
+    // Run the function when the page loads
+    window.addEventListener('load', updatePage);
+
+    // Debounced mutation observer to observe changes in the body
+    let debouncedUpdate = debounce(() => {
+        updatePage();
+    }, 500); // Adjust debounce timeout as needed (500ms in this example)
+
+    let observer = new MutationObserver(debouncedUpdate);
+    observer.observe(document.body, { childList: true, subtree: true });
+
+})();
