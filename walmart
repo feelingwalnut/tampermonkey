@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         walmart
 // @namespace    http://tampermonkey.net/
-// @version      1.6
+// @version      1.3
 // @description  Convert weights from ounces to pounds and prices per ounce to prices per pound on Walmart pages
 // @author       Your Name
 // @match        *://www.walmart.com/*
@@ -27,7 +27,6 @@
         let priceElements = document.querySelectorAll('div[data-automation-id="product-price"] > div.gray');
 
         priceElements.forEach(element => {
-            // Match prices in the format "38.6 ¢/oz"
             let priceText = element.innerText.match(/(\d+\.?\d*)\s?¢\/oz/);
             if (priceText) {
                 let pricePerOunce = parseFloat(priceText[1]); // Price in cents per ounce
@@ -51,7 +50,6 @@
         let weightElements = document.querySelectorAll('span[data-automation-id="product-title"]');
 
         weightElements.forEach(element => {
-            // Match weights in the format "20.7 oz"
             let weightText = element.innerText.match(/(\d+\.?\d*)\s?oz/);
             if (weightText) {
                 let ounces = parseFloat(weightText[1]);
@@ -62,7 +60,6 @@
 
                 // Apply important CSS
                 element.style.setProperty('color', 'red', 'important');
-
             }
         });
     }
@@ -88,7 +85,6 @@
     // Debounced mutation observer to observe changes in the body
     let debouncedUpdate = debounce(() => {
         updatePage();
-        observer.disconnect(); // Stop observing after initial modifications
     }, 500); // Adjust debounce timeout as needed (500ms in this example)
 
     let observer = new MutationObserver(debouncedUpdate);
