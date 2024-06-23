@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         aldi
 // @namespace    http://tampermonkey.net/
-// @version      1.0
-// @description  Convert weights from ounces to pounds and append prices per pound on ALDI pages, handling both ounces and pounds weights
+// @version      1.1
+// @description  Convert weights from ounces to pounds and append prices per pound on ALDI pages, handling both ounces and pounds weights, and ignoring prices already listed per pound
 // @author       Your Name
 // @match        *://*.aldi.us/*
 // @grant        none
@@ -27,6 +27,11 @@
         let priceElements = document.querySelectorAll('.product-tile__price');
 
         priceElements.forEach(priceElement => {
+            // Check if the price is already listed per pound
+            if (priceElement.innerText.includes('/lb')) {
+                return; // Skip this element
+            }
+
             let productTile = priceElement.closest('.product-tile');
             let weightElement = productTile.querySelector('.product-detail');
 
