@@ -1,0 +1,111 @@
+// ==UserScript==
+// @name         aldi
+// @namespace    http://tampermonkey.net/
+// @version      1.0
+// @description  Convert weights from ounces to pounds and append prices per pound on ALDI pages, handling both ounces and pounds weights
+// @author       Your Name
+// @match        *://*.aldi.us/*
+// @grant        none
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // Helper function to convert ounces to pounds
+    function convertOuncesToPounds(ounces) {
+        return (ounces / 16).toFixed(2);
+    }
+
+    // Helper function to convert price per ounce to price per pound in dollars
+    function convertPricePerOunceToPricePerPound(pricePerOunce) {
+        return (pricePerOunce * 16).toFixed(2);
+    }
+
+    // Function to update the prices per ounce to per pound
+    function updatePrices() {
+        // Select specific elements that contain price information
+        let priceElements = document.querySelectorAll('.product-tile__price');
+
+        priceElements.forEach(priceElement => {
+            let productTile = priceElement.closest('.product-tile');
+            let weightElement = productTile.querySelector('.product-detail');
+
+            if (weightElement) {
+                let weightText = weightElement.innerText;
+                let ouncesMatch = weightText.match(/(\d+\.?\d*)\s?oz/);
+                let poundsMatch = weightText.match(/(\d+\.?\d*)\s?lb/);
+                let weightInPounds;
+
+                if (ouncesMatch) {
+                    let ounces = parseFloat(ouncesMatch[1]);
+                    weightInPounds = convertOuncesToPounds(ounces);
+                } else if (poundsMatch) {
+                    weightInPounds = parseFloat(poundsMatch[1]);
+                } else {
+                    return; // Skip if weight is not found
+                }
+
+                let priceText = priceElement.innerText.match(/\$([\d\.]+)\s?/);
+                if (priceText) {
+                    let price = parseFloat(priceText[1]);
+                    let pricePerPound = (price / weightInPounds).toFixed(2);
+
+                    // Append the price per pound text
+                    priceElement.innerHTML += ` ($${pricePerPound}/lb)`;
+
+                    // Apply important CSS
+                    priceElement.style.setProperty('color', 'red', 'important');
+                }
+            }
+        });
+    }
+
+    // Function to update the weights from ounces to pounds
+    function updateWeights() {
+        // Select specific elements that contain weight information
+        let weightElements = document.querySelectorAll('.product-detail');
+
+        weightElements.forEach(element => {
+            let weightText = element.innerText;
+            let ouncesMatch = weightText.match(/(\d+\.?\d*)\s?oz/);
+            if (ouncesMatch) {
+                let ounces = parseFloat(ouncesMatch[1]);
+                let pounds = convertOuncesToPounds(ounces);
+
+                // Update the weight text directly
+                element.innerText = element.innerText.replace(/(\d+\.?\d*)\s?oz/, `${pounds} lbs`);
+
+                // Apply important CSS
+                element.style.setProperty('color', 'red', 'important');
+            }
+        });
+    }
+
+    // Function to debounce the updatePage function
+    function debounce(func, timeout) {
+        let timer;
+        return function() {
+            clearTimeout(timer);
+            timer = setTimeout(func, timeout);
+        };
+    }
+
+    // Function to update the prices and weights on the page
+    function updatePage() {
+        updatePrices();
+        updateWeights();
+    }
+
+    // Run the function when the page loads
+    window.addEventListener('load', updatePage);
+
+    // Debounced mutation observer to observe changes in the body
+    let debouncedUpdate = debounce(() => {
+        updatePage();
+        observer.disconnect(); // Stop observing after initial modifications
+    }, 500); // Adjust debounce timeout as needed (500ms in this example)
+
+    let observer = new MutationObserver(debouncedUpdate);
+    observer.observe(document.body, { childList: true, subtree: true });
+
+})();
