@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         bjs
 // @namespace    http://tampermonkey.net/
-// @version      0.3
+// @version      0.5
 // @description  Converts weights and prices, and makes them red text on the webpage
 // @author       You
 // @match        *://*.bjs.com/*
@@ -14,11 +14,6 @@
     // Helper function to convert ounces to pounds
     function convertOuncesToPounds(ounces) {
         return (ounces / 16).toFixed(2);
-    }
-
-    // Helper function to convert price per ounce to price per pound in dollars
-    function convertPricePerOunceToPricePerPound(pricePerOunce) {
-        return (pricePerOunce * 16).toFixed(2);
     }
 
     // Function to wait for element presence
@@ -35,7 +30,7 @@
     // Function to update the prices per ounce to per pound
     function updatePrices() {
         // Select specific elements that contain price information
-        let priceElements = document.querySelectorAll('.new-plp.product-card .price');
+        let priceElements = document.querySelectorAll('.new-plp.product-card .price, .new-plp.product-card .price-range');
 
         priceElements.forEach(priceElement => {
             // Check if the price is already listed per pound
@@ -51,9 +46,13 @@
                 let ouncesMatch = weightText.match(/(\d+\.?\d*)\s?oz/);
                 let poundsMatch = weightText.match(/(\d+\.?\d*)\s?lb/);
                 let countMatch = weightText.match(/(\d+)\s?ct\./);
+                let weightRangeMatch = weightText.match(/(\d+\.?\d*)\s?-\s?(\d+\.?\d*)\s?lbs/);
                 let weightInPounds;
 
-                if (ouncesMatch) {
+                if (weightRangeMatch) {
+                    // Extract minimum weight from range
+                    weightInPounds = parseFloat(weightRangeMatch[1]);
+                } else if (ouncesMatch) {
                     let ounces = parseFloat(ouncesMatch[1]);
                     if (countMatch) {
                         let count = parseInt(countMatch[1]);
@@ -67,17 +66,26 @@
                     return; // Skip if weight is not found
                 }
 
-                let priceText = priceElement.innerText.match(/\$([\d\.]+)\s?/);
-                if (priceText) {
-                    let price = parseFloat(priceText[1]);
-                    let pricePerPound = (price / weightInPounds).toFixed(2);
+                let priceRangeMatch = priceElement.innerText.match(/\$([\d\.]+)\s?-\s?\$([\d\.]+)/);
+                let priceMatch = priceElement.innerText.match(/\$([\d\.]+)\s?/);
+                let price;
 
-                    // Append the price per pound text
-                    priceElement.innerHTML += ` ($${pricePerPound}/lb)`;
-
-                    // Apply important CSS
-                    priceElement.style.setProperty('color', 'red', 'important');
+                if (priceRangeMatch) {
+                    // Extract minimum price from range
+                    price = parseFloat(priceRangeMatch[1]);
+                } else if (priceMatch) {
+                    price = parseFloat(priceMatch[1]);
+                } else {
+                    return; // Skip if price is not found
                 }
+
+                let pricePerPound = (price / weightInPounds).toFixed(2);
+
+                // Append the price per pound text
+                priceElement.innerHTML += ` ($${pricePerPound}/lb)`;
+
+                // Apply important CSS
+                priceElement.style.setProperty('color', 'red', 'important');
             }
         });
     }
@@ -91,8 +99,18 @@
             let weightText = element.innerText;
             let ouncesMatch = weightText.match(/(\d+\.?\d*)\s?oz/);
             let countMatch = weightText.match(/(\d+)\s?ct\./);
+            let weightRangeMatch = weightText.match(/(\d+\.?\d*)\s?-\s?(\d+\.?\d*)\s?lbs/);
 
-            if (ouncesMatch) {
+            if (weightRangeMatch) {
+                let minWeight = parseFloat(weightRangeMatch[1]);
+                let maxWeight = parseFloat(weightRangeMatch[2]);
+
+                // Update the weight text directly
+                element.innerHTML = element.innerHTML.replace(/(\d+\.?\d*)\s?-\s?(\d+\.?\d*)\s?lbs/, `${minWeight} - ${maxWeight} lbs`);
+
+                // Apply important CSS
+                element.style.setProperty('color', 'red', 'important');
+            } else if (ouncesMatch) {
                 let ounces = parseFloat(ouncesMatch[1]);
                 if (countMatch) {
                     let count = parseInt(countMatch[1]);
@@ -108,10 +126,10 @@
                 }
 
                 // Apply important CSS
-                element.style.setProperty('color', 'black', 'important');
+                element.style.setProperty('color', 'red', 'important');
             } else if (weightText.match(/(\d+\.?\d*)\s?lbs/)) {
                 // Ensure existing lbs weights are also red
-                element.style.setProperty('color', 'black', 'important');
+                element.style.setProperty('color', 'red', 'important');
             }
         });
     }
