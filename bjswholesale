@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         bjs
 // @namespace    http://tampermonkey.net/
-// @version      0.5
+// @version      0.7
 // @description  Converts weights and prices, and makes them red text on the webpage
 // @author       You
 // @match        *://*.bjs.com/*
@@ -45,7 +45,7 @@
                 let weightText = weightElement.innerText;
                 let ouncesMatch = weightText.match(/(\d+\.?\d*)\s?oz/);
                 let poundsMatch = weightText.match(/(\d+\.?\d*)\s?lb/);
-                let countMatch = weightText.match(/(\d+)\s?ct\./);
+                let countMatch = weightText.match(/(\d+)\s?pk\./);
                 let weightRangeMatch = weightText.match(/(\d+\.?\d*)\s?-\s?(\d+\.?\d*)\s?lbs/);
                 let weightInPounds;
 
@@ -98,7 +98,7 @@
         weightElements.forEach(element => {
             let weightText = element.innerText;
             let ouncesMatch = weightText.match(/(\d+\.?\d*)\s?oz/);
-            let countMatch = weightText.match(/(\d+)\s?ct\./);
+            let countMatch = weightText.match(/(\d+)\s?pk\./);
             let weightRangeMatch = weightText.match(/(\d+\.?\d*)\s?-\s?(\d+\.?\d*)\s?lbs/);
 
             if (weightRangeMatch) {
@@ -117,8 +117,8 @@
                     let totalWeightInOunces = count * ounces;
                     let totalWeightInPounds = convertOuncesToPounds(totalWeightInOunces);
 
-                    // Update the weight text directly
-                    element.innerHTML = element.innerHTML.replace(/(\d+)\s?ct\.\s?\/\s?(\d+\.?\d*)\s?oz/, `${count} ct./${totalWeightInPounds} lbs`);
+                    // Update the weight text directly without showing the count
+                    element.innerHTML = element.innerHTML.replace(/(\d+)\s?pk\.\s?\/\s?(\d+\.?\d*)\s?oz/, `${totalWeightInPounds} lbs`);
                 } else {
                     let pounds = convertOuncesToPounds(ounces);
                     // Update the weight text directly
