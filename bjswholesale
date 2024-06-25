@@ -1,0 +1,145 @@
+// ==UserScript==
+// @name         bjs
+// @namespace    http://tampermonkey.net/
+// @version      0.3
+// @description  Converts weights and prices, and makes them red text on the webpage
+// @author       You
+// @match        *://*.bjs.com/*
+// @grant        GM_addStyle
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // Helper function to convert ounces to pounds
+    function convertOuncesToPounds(ounces) {
+        return (ounces / 16).toFixed(2);
+    }
+
+    // Helper function to convert price per ounce to price per pound in dollars
+    function convertPricePerOunceToPricePerPound(pricePerOunce) {
+        return (pricePerOunce * 16).toFixed(2);
+    }
+
+    // Function to wait for element presence
+    function waitForElement(selector, callback) {
+        if (document.querySelector(selector)) {
+            callback();
+        } else {
+            setTimeout(function() {
+                waitForElement(selector, callback);
+            }, 500);
+        }
+    }
+
+    // Function to update the prices per ounce to per pound
+    function updatePrices() {
+        // Select specific elements that contain price information
+        let priceElements = document.querySelectorAll('.new-plp.product-card .price');
+
+        priceElements.forEach(priceElement => {
+            // Check if the price is already listed per pound
+            if (priceElement.innerText.includes('/lb')) {
+                return; // Skip this element
+            }
+
+            let productCard = priceElement.closest('.new-plp.product-card');
+            let weightElement = productCard.querySelector('.title-new-plp p');
+
+            if (weightElement) {
+                let weightText = weightElement.innerText;
+                let ouncesMatch = weightText.match(/(\d+\.?\d*)\s?oz/);
+                let poundsMatch = weightText.match(/(\d+\.?\d*)\s?lb/);
+                let countMatch = weightText.match(/(\d+)\s?ct\./);
+                let weightInPounds;
+
+                if (ouncesMatch) {
+                    let ounces = parseFloat(ouncesMatch[1]);
+                    if (countMatch) {
+                        let count = parseInt(countMatch[1]);
+                        weightInPounds = convertOuncesToPounds(count * ounces);
+                    } else {
+                        weightInPounds = convertOuncesToPounds(ounces);
+                    }
+                } else if (poundsMatch) {
+                    weightInPounds = parseFloat(poundsMatch[1]);
+                } else {
+                    return; // Skip if weight is not found
+                }
+
+                let priceText = priceElement.innerText.match(/\$([\d\.]+)\s?/);
+                if (priceText) {
+                    let price = parseFloat(priceText[1]);
+                    let pricePerPound = (price / weightInPounds).toFixed(2);
+
+                    // Append the price per pound text
+                    priceElement.innerHTML += ` ($${pricePerPound}/lb)`;
+
+                    // Apply important CSS
+                    priceElement.style.setProperty('color', 'red', 'important');
+                }
+            }
+        });
+    }
+
+    // Function to update the weights from ounces to pounds
+    function updateWeights() {
+        // Select specific elements that contain weight information
+        let weightElements = document.querySelectorAll('.title-new-plp p');
+
+        weightElements.forEach(element => {
+            let weightText = element.innerText;
+            let ouncesMatch = weightText.match(/(\d+\.?\d*)\s?oz/);
+            let countMatch = weightText.match(/(\d+)\s?ct\./);
+
+            if (ouncesMatch) {
+                let ounces = parseFloat(ouncesMatch[1]);
+                if (countMatch) {
+                    let count = parseInt(countMatch[1]);
+                    let totalWeightInOunces = count * ounces;
+                    let totalWeightInPounds = convertOuncesToPounds(totalWeightInOunces);
+
+                    // Update the weight text directly
+                    element.innerHTML = element.innerHTML.replace(/(\d+)\s?ct\.\s?\/\s?(\d+\.?\d*)\s?oz/, `${count} ct./${totalWeightInPounds} lbs`);
+                } else {
+                    let pounds = convertOuncesToPounds(ounces);
+                    // Update the weight text directly
+                    element.innerHTML = element.innerHTML.replace(/(\d+\.?\d*)\s?oz/, `${pounds} lbs`);
+                }
+
+                // Apply important CSS
+                element.style.setProperty('color', 'black', 'important');
+            } else if (weightText.match(/(\d+\.?\d*)\s?lbs/)) {
+                // Ensure existing lbs weights are also red
+                element.style.setProperty('color', 'black', 'important');
+            }
+        });
+    }
+
+    // Function to debounce the updatePage function
+    function debounce(func, timeout) {
+        let timer;
+        return function() {
+            clearTimeout(timer);
+            timer = setTimeout(func, timeout);
+        };
+    }
+
+    // Function to update the prices and weights on the page
+    function updatePage() {
+        updatePrices();
+        updateWeights();
+    }
+
+    // Run the function when the page loads
+    window.addEventListener('load', updatePage);
+
+    // Debounced mutation observer to observe changes in the body
+    let debouncedUpdate = debounce(() => {
+        updatePage();
+    }, 500); // Adjust debounce timeout as needed (500ms in this example)
+
+    let observer = new MutationObserver(debouncedUpdate);
+    observer.observe(document.body, { childList: true, subtree: true });
+
+})();
