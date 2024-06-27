@@ -1,0 +1,108 @@
+// ==UserScript==
+// @name         GiantFoodStores
+// @namespace    http://tampermonkey.net/
+// @version      1.0
+// @description  Convert prices per ounce to prices per pound and update weights on Giant Food Stores pages
+// @author       Your Name
+// @match        *://*.giantfoodstores.com/*
+// @grant        none
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // Helper function to convert ounces to pounds
+    function convertOuncesToPounds(ounces) {
+        return (ounces / 16).toFixed(2);
+    }
+
+    // Helper function to convert price per ounce to price per pound in dollars
+    function convertPricePerOunceToPricePerPound(pricePerOunce) {
+        return (pricePerOunce * 16).toFixed(2);
+    }
+
+    // Function to update the prices per pound and weights
+    function updatePage() {
+        // Select all product elements
+        let productElements = document.querySelectorAll('.product-grid-cell_sizes');
+
+        productElements.forEach(productElement => {
+            let sizeElement = productElement.querySelector('.product-grid-cell_size');
+            let priceElement = productElement.querySelector('.product-grid-cell_unit');
+
+            if (sizeElement && priceElement) {
+                let sizeText = sizeElement.innerText;
+                let priceText = priceElement.innerText;
+
+                // Check if the price is already listed per pound
+                if (priceText.includes('/lb')) {
+                    return; // Skip this element
+                }
+
+                let ouncesMatch = sizeText.match(/(\d+\.?\d*)\s?oz/i);
+                let poundsMatch = sizeText.match(/(\d+\.?\d*)\s?lb/i);
+                let weightInPounds;
+
+                if (ouncesMatch) {
+                    let ounces = parseFloat(ouncesMatch[1]);
+                    weightInPounds = convertOuncesToPounds(ounces);
+                } else if (poundsMatch) {
+                    weightInPounds = parseFloat(poundsMatch[1]);
+                } else {
+                    return; // Skip if weight is not found
+                }
+
+                let pricePerOunceMatch = priceText.match(/\$([\d\.]+)\s?\/\s?oz/i);
+                if (pricePerOunceMatch) {
+                    let pricePerOunce = parseFloat(pricePerOunceMatch[1]);
+                    let pricePerPound = convertPricePerOunceToPricePerPound(pricePerOunce);
+
+                    // Update the price text
+                    priceElement.innerHTML += ` ($${pricePerPound}/lb)`;
+
+                    // Apply important CSS
+                    priceElement.style.setProperty('color', 'red', 'important');
+                }
+            }
+        });
+
+        // Update weights from ounces to pounds
+        let weightElements = document.querySelectorAll('.product-grid-cell_size');
+
+        weightElements.forEach(element => {
+            let weightText = element.innerText;
+            let ouncesMatch = weightText.match(/(\d+\.?\d*)\s?oz/i);
+            if (ouncesMatch) {
+                let ounces = parseFloat(ouncesMatch[1]);
+                let pounds = convertOuncesToPounds(ounces);
+
+                // Update the weight text directly
+                element.innerText = element.innerText.replace(/(\d+\.?\d*)\s?oz/i, `${pounds} lbs`);
+
+                // Apply important CSS
+                element.style.setProperty('color', 'red', 'important');
+            }
+        });
+    }
+
+    // Function to debounce the updatePage function
+    function debounce(func, timeout) {
+        let timer;
+        return function() {
+            clearTimeout(timer);
+            timer = setTimeout(func, timeout);
+        };
+    }
+
+    // Run the function when the page loads
+    window.addEventListener('load', updatePage);
+
+    // Debounced mutation observer to observe changes in the body
+    let debouncedUpdate = debounce(() => {
+        updatePage();
+    }, 500); // Adjust debounce timeout as needed (500ms in this example)
+
+    let observer = new MutationObserver(debouncedUpdate);
+    observer.observe(document.body, { childList: true, subtree: true });
+
+})();
