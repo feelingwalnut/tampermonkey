@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         bjs
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Converts weights and prices, and makes them red text on the webpage
 // @author       You
 // @match        *://*.bjs.com/*
@@ -45,14 +45,14 @@
                 let weightText = weightElement.innerText;
                 let ouncesMatch = weightText.match(/(\d+\.?\d*)\s?oz/);
                 let poundsMatch = weightText.match(/(\d+\.?\d*)\s?lb/);
-                let countMatch = weightText.match(/(\d+)\s?ct\.\s?\/\s?(\d+\.?\d*)\s?lb/);
+                let countMatch = weightText.match(/(\d+)\s?(ct|pk)\.\s?\/\s?(\d+\.?\d*)\s?lb/);
                 let weightRangeMatch = weightText.match(/(\d+\.?\d*)\s?-\s?(\d+\.?\d*)\s?(lbs|lb)/);
                 let simpleWeightRangeMatch = weightText.match(/(\d+\.?\d*)\s?-\s?(\d+\.?\d*)/);
                 let weightInPounds;
 
                 if (countMatch) {
                     let count = parseInt(countMatch[1]);
-                    let weightPerItem = parseFloat(countMatch[2]);
+                    let weightPerItem = parseFloat(countMatch[3]);
                     weightInPounds = count * weightPerItem; // Calculate total weight
                 } else if (weightRangeMatch) {
                     // Extract minimum weight from range
@@ -101,17 +101,17 @@
         weightElements.forEach(element => {
             let weightText = element.innerText;
             let ouncesMatch = weightText.match(/(\d+\.?\d*)\s?oz/);
-            let countMatch = weightText.match(/(\d+)\s?ct\.\s?\/\s?(\d+\.?\d*)\s?lb/);
+            let countMatch = weightText.match(/(\d+)\s?(ct|pk)\.\s?\/\s?(\d+\.?\d*)\s?lb/);
             let weightRangeMatch = weightText.match(/(\d+\.?\d*)\s?-\s?(\d+\.?\d*)\s?(lbs|lb)/);
             let simpleWeightRangeMatch = weightText.match(/(\d+\.?\d*)\s?-\s?(\d+\.?\d*)/);
 
             if (countMatch) {
                 let count = parseInt(countMatch[1]);
-                let weightPerItem = parseFloat(countMatch[2]);
+                let weightPerItem = parseFloat(countMatch[3]);
                 let totalWeight = count * weightPerItem;
 
                 // Update the weight text directly
-                element.innerHTML = element.innerHTML.replace(/(\d+)\s?ct\.\s?\/\s?(\d+\.?\d*)\s?lb/, `${totalWeight} lbs`);
+                element.innerHTML = element.innerHTML.replace(/(\d+)\s?(ct|pk)\.\s?\/\s?(\d+\.?\d*)\s?lb/, `${totalWeight} lbs`);
 
                 // Apply important CSS
                 element.style.setProperty('color', 'red', 'important');
