@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         aldi
 // @namespace    http://tampermonkey.net/
-// @version      1.5
-// @description  Convert weights from ounces to pounds and append prices per pound on ALDI pages, handling both ounces and pounds weights, and ignoring prices already listed per pound
+// @version      1.9
+// @description  Convert weights from ounces to pounds, handle fluid ounces, and append prices per pound or fluid ounce on ALDI pages, ignoring prices already listed per pound
 // @author       Your Name
 // @match        *://*.aldi.us/*
 // @grant        none
@@ -16,14 +16,25 @@
         return (ounces / 16).toFixed(2);
     }
 
+    // Helper function to convert fluid ounces to gallons
+    function convertFluidOuncesToGallons(fluidOunces) {
+        return (fluidOunces / 128).toFixed(2); // 128 fluid ounces in a gallon
+    }
+
+    // Helper function to convert price per fluid ounce to price per gallon in dollars
+    function convertPricePerFluidOunceToPricePerGallon(pricePerFluidOunce) {
+        return (pricePerFluidOunce * 128).toFixed(2);
+    }
+
     // Helper function to convert price per ounce to price per pound in dollars
     function convertPricePerOunceToPricePerPound(pricePerOunce) {
         return (pricePerOunce * 16).toFixed(2);
     }
 
-    // Function to parse weight text and return total ounces
+    // Function to parse weight text and return total ounces or fluid ounces
     function parseWeight(weightText) {
         let totalOunces = 0;
+        let totalFluidOunces = 0;
         let match = weightText.match(/(\d+)\s?x\s?([\d\.]+)\s?oz/);
         if (match) {
             let quantity = parseFloat(match[1]);
@@ -33,19 +44,30 @@
             match = weightText.match(/([\d\.]+)\s?oz/);
             if (match) {
                 totalOunces = parseFloat(match[1]);
+            } else {
+                match = weightText.match(/([\d\.]+)\s?fl\s?oz/);
+                if (match) {
+                    totalFluidOunces = parseFloat(match[1]);
+                } else {
+                    match = weightText.match(/([\d\.]+)\s?lb/);
+                    if (match) {
+                        let pounds = parseFloat(match[1]);
+                        totalOunces = pounds * 16;
+                    }
+                }
             }
         }
-        return totalOunces;
+        return { totalOunces, totalFluidOunces };
     }
 
-    // Function to update the prices per pound and weights
+    // Function to update the prices per pound and fluid ounces
     function updatePage() {
-        // Update prices per pound
+        // Update prices per pound and fluid ounce
         let priceElements = document.querySelectorAll('.product-tile__price');
 
         priceElements.forEach(priceElement => {
-            // Check if the price is already listed per pound
-            if (priceElement.innerText.includes('/lb')) {
+            // Check if the price is already listed per pound or per gallon
+            if (priceElement.innerText.includes('/lb') || priceElement.innerText.includes('/gal')) {
                 return; // Skip this element
             }
 
@@ -54,20 +76,34 @@
 
             if (weightElement) {
                 let weightText = weightElement.innerText;
-                let totalOunces = parseWeight(weightText);
+                let { totalOunces, totalFluidOunces } = parseWeight(weightText);
                 let weightInPounds = convertOuncesToPounds(totalOunces);
 
                 if (totalOunces > 0) {
                     let priceText = priceElement.innerText.match(/\$([\d\.]+)\s?/);
                     if (priceText) {
                         let price = parseFloat(priceText[1]);
-                        let pricePerPound = (price / weightInPounds).toFixed(2);
+                        let pricePerPound = convertPricePerOunceToPricePerPound(price / totalOunces);
 
                         // Append the price per pound text
                         priceElement.innerHTML += ` ($${pricePerPound}/lb)`;
 
                         // Apply important CSS
                         priceElement.style.setProperty('color', 'red', 'important');
+                    }
+                }
+
+                if (totalFluidOunces > 0) {
+                    let priceText = priceElement.innerText.match(/\$([\d\.]+)\s?/);
+                    if (priceText) {
+                        let price = parseFloat(priceText[1]);
+                        let pricePerGallon = convertPricePerFluidOunceToPricePerGallon(price / totalFluidOunces);
+
+                        // Append the price per gallon text
+                        priceElement.innerHTML += ` ($${pricePerGallon}/gal)`;
+
+                        // Apply important CSS
+                        priceElement.style.setProperty('color', 'lightblue', 'important');
                     }
                 }
             }
@@ -77,16 +113,35 @@
         let weightElements = document.querySelectorAll('.product-detail');
 
         weightElements.forEach(element => {
+            // Skip if already processed
+            if (element.hasAttribute('data-processed')) {
+                return;
+            }
+
             let weightText = element.innerText;
-            let totalOunces = parseWeight(weightText);
+            let { totalOunces, totalFluidOunces } = parseWeight(weightText);
             if (totalOunces > 0) {
                 let pounds = convertOuncesToPounds(totalOunces);
 
                 // Update the weight text directly
-                element.innerText = element.innerText.replace(/([\d\.]+)\s?oz/, `${pounds} lbs`);
+                element.innerText = element.innerText.replace(/([\d\.]+)\s?(oz|lb)/, `${pounds} lbs`);
 
                 // Apply important CSS
                 element.style.setProperty('color', 'red', 'important');
+
+                // Mark this element as processed
+                element.setAttribute('data-processed', 'true');
+            } else if (totalFluidOunces > 0) {
+                let gallons = convertFluidOuncesToGallons(totalFluidOunces);
+
+                // Update the weight text directly
+                element.innerText = element.innerText.replace(/([\d\.]+)\s?fl\s?oz/, `${gallons} gal`);
+
+                // Apply important CSS
+                element.style.setProperty('color', 'lightblue', 'important');
+
+                // Mark this element as processed
+                element.setAttribute('data-processed', 'true');
             }
         });
     }
