@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         bjs
 // @namespace    http://tampermonkey.net/
-// @version      1.1
-// @description  Converts weights and prices, and makes them red text on the webpage
+// @version      1.4
+// @description  Converts weights and prices, and makes them red or light blue text on the webpage
 // @author       You
 // @match        *://*.bjs.com/*
 // @grant        GM_addStyle
@@ -16,6 +16,16 @@
         return (ounces / 16).toFixed(2);
     }
 
+    // Helper function to convert fluid ounces to gallons
+    function convertFluidOuncesToGallons(fluidOunces) {
+        return (fluidOunces / 128).toFixed(2);
+    }
+
+    // Helper function to convert price per fluid ounce to price per gallon in dollars
+    function convertPricePerFluidOunceToPricePerGallon(pricePerFluidOunce) {
+        return (pricePerFluidOunce * 128).toFixed(2);
+    }
+
     // Function to wait for element presence
     function waitForElement(selector, callback) {
         if (document.querySelector(selector)) {
@@ -27,14 +37,14 @@
         }
     }
 
-    // Function to update the prices per ounce to per pound
+    // Function to update the prices per ounce to per pound and per fluid ounce to per gallon
     function updatePrices() {
         // Select specific elements that contain price information
         let priceElements = document.querySelectorAll('.new-plp.product-card .price, .new-plp.product-card .price-range');
 
         priceElements.forEach(priceElement => {
-            // Check if the price is already listed per pound
-            if (priceElement.innerText.includes('/lb')) {
+            // Check if the price is already listed per pound or per gallon
+            if (priceElement.innerText.includes('/lb') || priceElement.innerText.includes('/gal')) {
                 return; // Skip this element
             }
 
@@ -44,16 +54,18 @@
             if (weightElement) {
                 let weightText = weightElement.innerText;
                 let ouncesMatch = weightText.match(/(\d+\.?\d*)\s?oz/);
+                let fluidOuncesMatch = weightText.match(/(\d+\.?\d*)\s?fl\s?\.?\s?oz/);
                 let poundsMatch = weightText.match(/(\d+\.?\d*)\s?lb/);
-                let countMatch = weightText.match(/(\d+)\s?(ct|pk)\.\s?\/\s?(\d+\.?\d*)\s?lb/);
+                let countMatch = weightText.match(/(\d+)\s?(ct|pk)\.\s?\/\s?(\d+\.?\d*)\s?oz/);
                 let weightRangeMatch = weightText.match(/(\d+\.?\d*)\s?-\s?(\d+\.?\d*)\s?(lbs|lb)/);
                 let simpleWeightRangeMatch = weightText.match(/(\d+\.?\d*)\s?-\s?(\d+\.?\d*)/);
-                let weightInPounds;
+                let weightInPounds, weightInGallons;
 
                 if (countMatch) {
                     let count = parseInt(countMatch[1]);
-                    let weightPerItem = parseFloat(countMatch[3]);
-                    weightInPounds = count * weightPerItem; // Calculate total weight
+                    let weightPerItemInOunces = parseFloat(countMatch[3]);
+                    let totalWeightInOunces = count * weightPerItemInOunces;
+                    weightInPounds = convertOuncesToPounds(totalWeightInOunces);
                 } else if (weightRangeMatch) {
                     // Extract minimum weight from range
                     weightInPounds = parseFloat(weightRangeMatch[1]);
@@ -63,6 +75,9 @@
                 } else if (ouncesMatch) {
                     let ounces = parseFloat(ouncesMatch[1]);
                     weightInPounds = convertOuncesToPounds(ounces);
+                } else if (fluidOuncesMatch) {
+                    let fluidOunces = parseFloat(fluidOuncesMatch[1]);
+                    weightInGallons = convertFluidOuncesToGallons(fluidOunces);
                 } else if (poundsMatch) {
                     weightInPounds = parseFloat(poundsMatch[1]);
                 } else {
@@ -82,18 +97,25 @@
                     return; // Skip if price is not found
                 }
 
-                let pricePerPound = (price / weightInPounds).toFixed(2);
-
-                // Append the price per pound text
-                priceElement.innerHTML += ` ($${pricePerPound}/lb)`;
-
-                // Apply important CSS
-                priceElement.style.setProperty('color', 'red', 'important');
+                if (weightInPounds) {
+                    let pricePerPound = (price / weightInPounds).toFixed(2);
+                    // Append the price per pound text
+                    priceElement.innerHTML += ` ($${pricePerPound}/lb)`;
+                    // Apply important CSS
+                    priceElement.style.setProperty('color', 'red', 'important');
+                } else if (weightInGallons) {
+                    let pricePerFluidOunce = price / (weightInGallons * 128);
+                    let pricePerGallon = convertPricePerFluidOunceToPricePerGallon(pricePerFluidOunce);
+                    // Append the price per gallon text
+                    priceElement.innerHTML += ` ($${pricePerGallon}/gal)`;
+                    // Apply important CSS
+                    priceElement.style.setProperty('color', 'lightblue', 'important');
+                }
             }
         });
     }
 
-    // Function to update the weights from ounces to pounds
+    // Function to update the weights from ounces to pounds and fluid ounces to gallons
     function updateWeights() {
         // Select specific elements that contain weight information
         let weightElements = document.querySelectorAll('.title-new-plp p');
@@ -101,17 +123,19 @@
         weightElements.forEach(element => {
             let weightText = element.innerText;
             let ouncesMatch = weightText.match(/(\d+\.?\d*)\s?oz/);
-            let countMatch = weightText.match(/(\d+)\s?(ct|pk)\.\s?\/\s?(\d+\.?\d*)\s?lb/);
+            let fluidOuncesMatch = weightText.match(/(\d+\.?\d*)\s?fl\s?\.?\s?oz/);
+            let countMatch = weightText.match(/(\d+)\s?(ct|pk)\.\s?\/\s?(\d+\.?\d*)\s?oz/);
             let weightRangeMatch = weightText.match(/(\d+\.?\d*)\s?-\s?(\d+\.?\d*)\s?(lbs|lb)/);
             let simpleWeightRangeMatch = weightText.match(/(\d+\.?\d*)\s?-\s?(\d+\.?\d*)/);
 
             if (countMatch) {
                 let count = parseInt(countMatch[1]);
-                let weightPerItem = parseFloat(countMatch[3]);
-                let totalWeight = count * weightPerItem;
+                let weightPerItemInOunces = parseFloat(countMatch[3]);
+                let totalWeightInOunces = count * weightPerItemInOunces;
+                let totalWeightInPounds = convertOuncesToPounds(totalWeightInOunces);
 
                 // Update the weight text directly
-                element.innerHTML = element.innerHTML.replace(/(\d+)\s?(ct|pk)\.\s?\/\s?(\d+\.?\d*)\s?lb/, `${totalWeight} lbs`);
+                element.innerHTML = element.innerHTML.replace(/(\d+)\s?(ct|pk)\.\s?\/\s?(\d+\.?\d*)\s?oz/, `${totalWeightInPounds} lbs`);
 
                 // Apply important CSS
                 element.style.setProperty('color', 'red', 'important');
@@ -141,9 +165,20 @@
 
                 // Apply important CSS
                 element.style.setProperty('color', 'red', 'important');
+            } else if (fluidOuncesMatch) {
+                let fluidOunces = parseFloat(fluidOuncesMatch[1]);
+                let gallons = convertFluidOuncesToGallons(fluidOunces);
+                // Update the weight text directly
+                element.innerHTML = element.innerHTML.replace(/(\d+\.?\d*)\s?fl\s?\.?\s?oz/, `${gallons} gal`);
+
+                // Apply important CSS
+                element.style.setProperty('color', 'lightblue', 'important');
             } else if (weightText.match(/(\d+\.?\d*)\s?lbs/)) {
                 // Ensure existing lbs weights are also red
                 element.style.setProperty('color', 'red', 'important');
+            } else if (weightText.match(/(\d+\.?\d*)\s?gal/)) {
+                // Ensure existing gallons weights are also light blue
+                element.style.setProperty('color', 'lightblue', 'important');
             }
         });
     }
