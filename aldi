@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         aldi
 // @namespace    http://tampermonkey.net/
-// @version      1.9
+// @version      2.1
 // @description  Convert weights from ounces to pounds, handle fluid ounces, and append prices per pound or fluid ounce on ALDI pages, ignoring prices already listed per pound
 // @author       Your Name
 // @match        *://*.aldi.us/*
@@ -29,6 +29,21 @@
     // Helper function to convert price per ounce to price per pound in dollars
     function convertPricePerOunceToPricePerPound(pricePerOunce) {
         return (pricePerOunce * 16).toFixed(2);
+    }
+
+    // Helper function to append price per pound to the price element
+    function appendPricePerPound(priceElement, totalOunces) {
+        let priceText = priceElement.innerText.match(/\$([\d\.]+)\s?/);
+        if (priceText) {
+            let price = parseFloat(priceText[1]);
+            let pricePerPound = convertPricePerOunceToPricePerPound(price / totalOunces);
+
+            // Append the price per pound text
+            priceElement.innerHTML += ` ($${pricePerPound}/lb)`;
+
+            // Apply important CSS
+            priceElement.style.setProperty('color', 'red', 'important');
+        }
     }
 
     // Function to parse weight text and return total ounces or fluid ounces
@@ -72,25 +87,14 @@
             }
 
             let productTile = priceElement.closest('.product-tile');
-            let weightElement = productTile.querySelector('.product-detail');
+            let weightElement = productTile.querySelector('.product-tile__unit-of-measurement p');
 
             if (weightElement) {
                 let weightText = weightElement.innerText;
                 let { totalOunces, totalFluidOunces } = parseWeight(weightText);
-                let weightInPounds = convertOuncesToPounds(totalOunces);
 
                 if (totalOunces > 0) {
-                    let priceText = priceElement.innerText.match(/\$([\d\.]+)\s?/);
-                    if (priceText) {
-                        let price = parseFloat(priceText[1]);
-                        let pricePerPound = convertPricePerOunceToPricePerPound(price / totalOunces);
-
-                        // Append the price per pound text
-                        priceElement.innerHTML += ` ($${pricePerPound}/lb)`;
-
-                        // Apply important CSS
-                        priceElement.style.setProperty('color', 'red', 'important');
-                    }
+                    appendPricePerPound(priceElement, totalOunces);
                 }
 
                 if (totalFluidOunces > 0) {
@@ -110,7 +114,7 @@
         });
 
         // Update weights from ounces to pounds
-        let weightElements = document.querySelectorAll('.product-detail');
+        let weightElements = document.querySelectorAll('.product-tile__unit-of-measurement p');
 
         weightElements.forEach(element => {
             // Skip if already processed
@@ -124,7 +128,7 @@
                 let pounds = convertOuncesToPounds(totalOunces);
 
                 // Update the weight text directly
-                element.innerText = element.innerText.replace(/([\d\.]+)\s?(oz|lb)/, `${pounds} lbs`);
+                element.innerText = element.innerText.replace(/([\d\.]+)\s?oz/, `${pounds} lbs`);
 
                 // Apply important CSS
                 element.style.setProperty('color', 'red', 'important');
